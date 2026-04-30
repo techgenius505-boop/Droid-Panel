@@ -262,3 +262,78 @@ app_manager() {
     done
 }
 
+# ─── 4. PORTAPAPELES ────────────────────────────
+clipboard_manager() {
+    while true; do
+        CHOICE=$(whiptail --title "📋 PORTAPAPELES" \
+            --menu "\nQué quieres hacer:" 14 55 5 \
+            "1" "👁️   Leer portapapeles" \
+            "2" "✏️   Escribir al portapapeles" \
+            "3" "🧹  Limpiar portapapeles" \
+            "B" "← Volver" \
+            3>&1 1>&2 2>&3)
+
+        case $CHOICE in
+            1)
+                local content
+                content=$(rsh "cmd clipboard get" 2>/dev/null || \
+                          termux-clipboard-get 2>/dev/null || \
+                          echo "(vacío o no disponible)")
+                whiptail --msgbox "📋 Contenido:\n\n$content" 15 70 --title "Portapapeles"
+                ;;
+            2)
+                local new_content
+                new_content=$(whiptail --inputbox "Texto a copiar al portapapeles:" \
+                    10 60 --title "Escribir Portapapeles" 3>&1 1>&2 2>&3)
+                if [ -n "$new_content" ]; then
+                    echo -n "$new_content" | termux-clipboard-set 2>/dev/null || \
+                    rsh "cmd clipboard set '$new_content'" 2>/dev/null
+                    whiptail --msgbox "✅ Copiado al portapapeles" 8 45
+                fi
+                ;;
+            3)
+                rsh "cmd clipboard clear" 2>/dev/null
+                echo -n "" | termux-clipboard-set 2>/dev/null
+                whiptail --msgbox "🧹 Portapapeles limpiado" 8 45
+                ;;
+            B|"") break ;;
+        esac
+    done
+}
+
+# ─── 5. INFORMACIÓN DE RED ──────────────────────
+network_info() {
+    clear
+    show_banner
+    echo -e "${BOLD}${WHITE}  🌐 INFORMACIÓN DE RED${NC}"
+    echo -e "  ${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+
+    local wifi_state ip_addr dns mac_addr
+    wifi_state=$(rsh "cmd wifi status" | grep -i "wifi is" | head -1)
+    ip_addr=$(rsh "ip route get 1 2>/dev/null" | grep -oP 'src \K[\d.]+' | head -1)
+    mac_addr=$(rsh "cat /sys/class/net/wlan0/address" 2>/dev/null)
+
+    echo -e "  📡 ${BOLD}Estado WiFi:${NC}  ${GREEN}${wifi_state:-Desconocido}${NC}"
+    echo -e "  🌍 ${BOLD}IP local:${NC}     ${CYAN}${ip_addr:-No disponible}${NC}"
+    echo -e "  🔑 ${BOLD}MAC:${NC}          ${YELLOW}${mac_addr:-No disponible}${NC}"
+
+    # Velocidad de descarga rápida
+    echo -e "\n  ⏳ ${DIM}Midiendo velocidad de conexión...${NC}"
+    local speed
+    speed=$(curl -s -o /dev/null -w "%{speed_download}" \
+        --max-time 5 https://github.com 2>/dev/null)
+    if [ -n "$speed" ]; then
+        local speed_kb=$(echo "scale=2; $speed / 1024" | bc 2>/dev/null)
+        echo -e "  ⚡ ${BOLD}Velocidad:${NC}    ${GREEN}${speed_kb} KB/s${NC}"
+    fi
+
+    # Latencia
+    echo -e "  🏓 ${BOLD}Ping a 8.8.8.8:${NC}"
+    rsh "ping -c 3 8.8.8.8" 2>/dev/null | tail -2 | while read line; do
+        echo -e "     ${CYAN}$line${NC}"
+    done
+
+    echo -e "\n  ${DIM}Actualizado: $(date '+%H:%M:%S')${NC}\n"
+    read -p "  Presiona ENTER para volver al menú..."
+}
+
