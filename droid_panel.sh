@@ -191,3 +191,74 @@ system_controls() {
     done
 }
 
+# ─── 3. GESTOR DE APPS ─────────────────────────
+app_manager() {
+    while true; do
+        CHOICE=$(whiptail --title "📱 GESTOR DE APLICACIONES" \
+            --menu "\nSelecciona una acción:" 18 60 8 \
+            "1" "📋  Ver apps instaladas" \
+            "2" "🚀  Abrir una app" \
+            "3" "⏹️   Forzar cierre de app" \
+            "4" "🗑️   Desinstalar app" \
+            "5" "🔒  Deshabilitar app (sin borrar)" \
+            "6" "✅  Habilitar app" \
+            "B" "← Volver" \
+            3>&1 1>&2 2>&3)
+
+        case $CHOICE in
+            1)
+                # Listar apps en un archivo temporal para mostrar
+                local tmp_file=$(mktemp)
+                rsh "pm list packages -3" | sed 's/package://g' | sort > "$tmp_file"
+                local count=$(wc -l < "$tmp_file")
+                whiptail --title "Apps instaladas (${count} apps)" \
+                    --textbox "$tmp_file" 30 70
+                rm "$tmp_file"
+                ;;
+            2)
+                PKG=$(whiptail --inputbox "Escribe el package name\n(ej: com.instagram.android)" \
+                    10 60 --title "Abrir App" 3>&1 1>&2 2>&3)
+                if [ -n "$PKG" ]; then
+                    rsh "monkey -p $PKG 1" &>/dev/null
+                    whiptail --msgbox "🚀 Abriendo $PKG..." 8 50
+                fi
+                ;;
+            3)
+                PKG=$(whiptail --inputbox "Package name de la app a cerrar:" \
+                    10 60 --title "Forzar Cierre" 3>&1 1>&2 2>&3)
+                if [ -n "$PKG" ]; then
+                    rsh "am force-stop $PKG"
+                    whiptail --msgbox "⏹️  App $PKG detenida" 8 50
+                fi
+                ;;
+            4)
+                PKG=$(whiptail --inputbox "Package name a desinstalar:" \
+                    10 60 --title "Desinstalar App" 3>&1 1>&2 2>&3)
+                if [ -n "$PKG" ]; then
+                    if whiptail --yesno "¿Seguro que quieres desinstalar $PKG?" 8 60; then
+                        rsh "pm uninstall $PKG"
+                        whiptail --msgbox "🗑️  $PKG desinstalado" 8 50
+                    fi
+                fi
+                ;;
+            5)
+                PKG=$(whiptail --inputbox "Package name a deshabilitar:" \
+                    10 60 --title "Deshabilitar App" 3>&1 1>&2 2>&3)
+                if [ -n "$PKG" ]; then
+                    rsh "pm disable-user --user 0 $PKG"
+                    whiptail --msgbox "🔒 $PKG deshabilitado" 8 50
+                fi
+                ;;
+            6)
+                PKG=$(whiptail --inputbox "Package name a habilitar:" \
+                    10 60 --title "Habilitar App" 3>&1 1>&2 2>&3)
+                if [ -n "$PKG" ]; then
+                    rsh "pm enable $PKG"
+                    whiptail --msgbox "✅ $PKG habilitado" 8 50
+                fi
+                ;;
+            B|"") break ;;
+        esac
+    done
+}
+
