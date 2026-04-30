@@ -406,3 +406,42 @@ quick_automations() {
     done
 }
 
+# ─── MENÚ PRINCIPAL ─────────────────────────────
+main_menu() {
+    check_deps
+
+    while true; do
+        show_banner
+
+        CHOICE=$(whiptail --title "DROID PANEL │ Termux + Shizuku" \
+            --menu "Selecciona una opción:" 20 65 8 \
+            "1" "📊  Estadísticas del sistema" \
+            "2" "⚙️   Control del sistema" \
+            "3" "📱  Gestor de aplicaciones" \
+            "4" "📋  Portapapeles" \
+            "5" "🌐  Información de red" \
+            "6" "⚡  Automatizaciones rápidas" \
+            "Q" "🚪  Salir" \
+            3>&1 1>&2 2>&3)
+
+        case $CHOICE in
+            1) show_stats ;;
+            2) system_controls ;;
+            3) app_manager ;;
+            4) clipboard_manager ;;
+            5) network_info ;;
+            6) quick_automations ;;
+            Q|"")
+                clear
+                echo -e "\n  ${CYAN}╔══════════════════════════════╗${NC}"
+                echo -e "  ${CYAN}║  Hasta luego! 👋             ║${NC}"
+                echo -e "  ${CYAN}║  Droid Panel by @tu_canal    ║${NC}"
+                echo -e "  ${CYAN}╚══════════════════════════════╝${NC}\n"
+                exit 0
+                ;;
+        esac
+    done
+}
+
+# ─── Inicio ─────────────────────────────────────
+main_menu
