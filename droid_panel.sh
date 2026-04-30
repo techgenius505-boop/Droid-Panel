@@ -435,7 +435,7 @@ main_menu() {
                 clear
                 echo -e "\n  ${CYAN}╔══════════════════════════════╗${NC}"
                 echo -e "  ${CYAN}║  Hasta luego! 👋             ║${NC}"
-                echo -e "  ${CYAN}║  Droid Panel by @tu_canal    ║${NC}"
+                echo -e "  ${CYAN}║  Droid Panel by @TechGenius   ║${NC}"
                 echo -e "  ${CYAN}╚══════════════════════════════╝${NC}\n"
                 exit 0
                 ;;
