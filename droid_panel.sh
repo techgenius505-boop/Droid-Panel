@@ -132,3 +132,62 @@ show_stats() {
     read -p "  Presiona ENTER para volver al menú..."
 }
 
+# ─── 2. CONTROL DE SISTEMA ──────────────────────
+system_controls() {
+    while true; do
+        CHOICE=$(whiptail --title "⚙️  CONTROL DEL SISTEMA" \
+            --menu "\nSelecciona una acción:" 20 60 10 \
+            "1" "🌙  Activar Dark Mode" \
+            "2" "☀️   Desactivar Dark Mode" \
+            "3" "🔕  Activar No Molestar" \
+            "4" "🔔  Desactivar No Molestar" \
+            "5" "✈️   Activar Modo Avión" \
+            "6" "📡  Desactivar Modo Avión" \
+            "7" "🔆  Brillo al máximo" \
+            "8" "🔅  Brillo al mínimo" \
+            "9" "🔄  Rotar pantalla (auto)" \
+            "B" "← Volver" \
+            3>&1 1>&2 2>&3)
+
+        case $CHOICE in
+            1)
+                rsh "cmd uimode night yes"
+                whiptail --msgbox "🌙 Dark Mode ACTIVADO" 8 40
+                ;;
+            2)
+                rsh "cmd uimode night no"
+                whiptail --msgbox "☀️  Dark Mode DESACTIVADO" 8 40
+                ;;
+            3)
+                rsh "cmd notification set_dnd priority"
+                whiptail --msgbox "🔕 No Molestar ACTIVADO" 8 40
+                ;;
+            4)
+                rsh "cmd notification set_dnd off"
+                whiptail --msgbox "🔔 No Molestar DESACTIVADO" 8 40
+                ;;
+            5)
+                rsh "cmd connectivity airplane-mode enable"
+                whiptail --msgbox "✈️  Modo Avión ACTIVADO" 8 40
+                ;;
+            6)
+                rsh "cmd connectivity airplane-mode disable"
+                whiptail --msgbox "📡 Modo Avión DESACTIVADO" 8 40
+                ;;
+            7)
+                rsh "settings put system screen_brightness 255"
+                whiptail --msgbox "🔆 Brillo al MÁXIMO" 8 40
+                ;;
+            8)
+                rsh "settings put system screen_brightness 0"
+                whiptail --msgbox "🔅 Brillo al MÍNIMO" 8 40
+                ;;
+            9)
+                rsh "settings put system accelerometer_rotation 1"
+                whiptail --msgbox "🔄 Rotación automática ACTIVADA" 8 40
+                ;;
+            B|"") break ;;
+        esac
+    done
+}
+
