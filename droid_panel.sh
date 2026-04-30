@@ -337,3 +337,72 @@ network_info() {
     read -p "  Presiona ENTER para volver al menú..."
 }
 
+# ─── 6. AUTOMATIZACIÓN RÁPIDA ──────────────────
+quick_automations() {
+    while true; do
+        CHOICE=$(whiptail --title "⚡ AUTOMATIZACIONES RÁPIDAS" \
+            --menu "\nAcciones de un clic:" 18 65 8 \
+            "1" "😴  Modo Noche completo" \
+            "2" "☀️   Modo Día completo" \
+            "3" "🎮  Modo Gaming (máx rendimiento)" \
+            "4" "🔋  Modo Ahorro de batería" \
+            "5" "🧹  Matar apps en background" \
+            "6" "📸  Captura de pantalla" \
+            "B" "← Volver" \
+            3>&1 1>&2 2>&3)
+
+        case $CHOICE in
+            1)
+                # Modo noche: dark mode + DND + brillo bajo
+                rsh "cmd uimode night yes"
+                rsh "cmd notification set_dnd priority"
+                rsh "settings put system screen_brightness 30"
+                rsh "settings put system accelerometer_rotation 0"
+                whiptail --msgbox "😴 MODO NOCHE ACTIVADO\n\n✓ Dark Mode ON\n✓ No Molestar ON\n✓ Brillo al mínimo\n✓ Rotación bloqueada" 12 45
+                ;;
+            2)
+                # Modo día: light + notificaciones + brillo alto
+                rsh "cmd uimode night no"
+                rsh "cmd notification set_dnd off"
+                rsh "settings put system screen_brightness 200"
+                rsh "settings put system accelerometer_rotation 1"
+                whiptail --msgbox "☀️  MODO DÍA ACTIVADO\n\n✓ Light Mode ON\n✓ Notificaciones ON\n✓ Brillo alto\n✓ Rotación auto" 12 45
+                ;;
+            3)
+                # Modo gaming
+                rsh "settings put global low_power 0"
+                rsh "settings put system screen_brightness 255"
+                rsh "cmd notification set_dnd priority"
+                rsh "settings put global game_driver_all_apps 1" 2>/dev/null
+                whiptail --msgbox "🎮 MODO GAMING ACTIVADO\n\n✓ Ahorro batería OFF\n✓ Brillo máximo\n✓ DND ON\n✓ Performance mode" 12 45
+                ;;
+            4)
+                # Modo ahorro
+                rsh "settings put global low_power 1"
+                rsh "settings put system screen_brightness 50"
+                rsh "cmd connectivity airplane-mode disable"
+                whiptail --msgbox "🔋 MODO AHORRO ACTIVADO\n\n✓ Battery saver ON\n✓ Brillo reducido\n✓ Sync reducido" 12 45
+                ;;
+            5)
+                # Matar apps en background
+                local killed_count=0
+                local apps_bg
+                apps_bg=$(rsh "am dump | grep 'Activities in' -A2" 2>/dev/null | grep -oP 'com\.\S+' | head -10)
+                for app in $apps_bg; do
+                    [[ "$app" == *"termux"* ]] && continue
+                    [[ "$app" == *"shizuku"* ]] && continue
+                    rsh "am force-stop $app" 2>/dev/null
+                    ((killed_count++))
+                done
+                whiptail --msgbox "🧹 Apps en background detenidas\n\nProcesadas: ~${killed_count} apps" 10 45
+                ;;
+            6)
+                local screenshot_path="/sdcard/DCIM/Screenshots/droidpanel_$(date +%Y%m%d_%H%M%S).png"
+                rsh "screencap -p '$screenshot_path'"
+                whiptail --msgbox "📸 Screenshot guardado en:\n\n$screenshot_path" 10 60
+                ;;
+            B|"") break ;;
+        esac
+    done
+}
+
