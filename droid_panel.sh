@@ -220,43 +220,65 @@ app_manager() {
                 rm -f "$tmp_file"
                 ;;
             2)
-                PKG=$(whiptail --inputbox "Package name a abrir:\n(ej: com.instagram.android)" \
+                PKG=$(whiptail --inputbox "Package name a abrir:\n(ej: org.telegram.messenger)" \
                     10 60 --title "Abrir App" 3>&1 1>&2 2>&3)
                 if [ -n "$PKG" ]; then
-                    # Método más compatible: am start con el launcher
-                    RESULT=$(rsh "am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p $PKG" 2>&1)
-                    if echo "$RESULT" | grep -q "Error\|error\|Exception"; then
-                        # Fallback: monkey
-                        rsh "monkey -p $PKG -c android.intent.category.LAUNCHER 1"
+                    # Resolver el activity correcto con cmd package resolve-activity
+                    ACTIVITY=$(rsh "cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER $PKG" | tail -1)
+                    if [ -n "$ACTIVITY" ] && [[ "$ACTIVITY" != "No activity"* ]] && [[ "$ACTIVITY" != *"error"* ]]; then
+                        RESULT=$(rsh "am start -n $ACTIVITY")
+                        whiptail --msgbox "🚀 Abriendo:\n$PKG\n\nActivity: $ACTIVITY" 11 60
+                    else
+                        whiptail --msgbox "❌ No se encontró launcher para:\n$PKG\n\nVerifica que el package name sea correcto." 11 60
                     fi
-                    whiptail --msgbox "🚀 Lanzando:\n$PKG" 9 55
                 fi
                 ;;
             3)
                 PKG=$(whiptail --inputbox "Package name a cerrar:" \
                     10 60 --title "Forzar Cierre" 3>&1 1>&2 2>&3)
                 if [ -n "$PKG" ]; then
-                    rsh "am force-stop $PKG"
-                    rsh "am kill --user 0 $PKG"
-                    whiptail --msgbox "⏹️  App detenida:\n$PKG" 9 55
+                    # Verificar que el paquete existe
+                    EXISTS=$(rsh "pm list packages $PKG" | grep -c "$PKG")
+                    if [ "$EXISTS" -gt 0 ]; then
+                        rsh "am force-stop $PKG"
+                        sleep 0.3
+                        rsh "am kill $PKG"
+                        whiptail --msgbox "⏹️  App detenida:\n$PKG" 9 55
+                    else
+                        whiptail --msgbox "❌ Paquete no encontrado:\n$PKG" 9 55
+                    fi
                 fi
                 ;;
             4)
-                PKG=$(whiptail --inputbox "Package name a desinstalar:\n(solo apps de usuario)" \
+                PKG=$(whiptail --inputbox "Package name a desinstalar:\n(solo apps de usuario, no del sistema)" \
                     10 60 --title "Desinstalar App" 3>&1 1>&2 2>&3)
                 if [ -n "$PKG" ]; then
-                    if whiptail --yesno "¿Desinstalar $PKG?" 8 60; then
-                        RESULT=$(rsh "pm uninstall --user 0 $PKG")
-                        whiptail --msgbox "Resultado: ${RESULT:-error}" 8 55
+                    # Verificar que es app de usuario
+                    IS_USER=$(rsh "pm list packages -3" | grep -c "package:$PKG")
+                    if [ "$IS_USER" -gt 0 ]; then
+                        if whiptail --yesno "¿Desinstalar permanentemente?\n\n$PKG" 9 60; then
+                            RESULT=$(rsh "pm uninstall --user 0 $PKG")
+                            if echo "$RESULT" | grep -qi "success"; then
+                                whiptail --msgbox "✅ Desinstalado correctamente:\n$PKG" 9 55
+                            else
+                                whiptail --msgbox "⚠️  Resultado:\n${RESULT:-sin respuesta}" 9 55
+                            fi
+                        fi
+                    else
+                        whiptail --msgbox "❌ No encontrado como app de usuario:\n$PKG\n\nPara apps del sistema usa 'Deshabilitar'." 11 60
                     fi
                 fi
                 ;;
             5)
-                PKG=$(whiptail --inputbox "Package name a deshabilitar:" \
+                PKG=$(whiptail --inputbox "Package name a deshabilitar:\n(funciona con apps del sistema)" \
                     10 60 --title "Deshabilitar App" 3>&1 1>&2 2>&3)
                 if [ -n "$PKG" ]; then
                     RESULT=$(rsh "pm disable-user --user 0 $PKG")
-                    whiptail --msgbox "Resultado: ${RESULT:-hecho}" 8 55
+                    if echo "$RESULT" | grep -qi "disabled\|success"; then
+                        whiptail --msgbox "🔒 App deshabilitada:\n$PKG\n\nNo aparecerá en el launcher ni consumirá recursos." 11 60
+                    else
+                        whiptail --msgbox "⚠️  Resultado:\n${RESULT:-sin respuesta}" 9 55
+                    fi
                 fi
                 ;;
             6)
@@ -264,7 +286,11 @@ app_manager() {
                     10 60 --title "Habilitar App" 3>&1 1>&2 2>&3)
                 if [ -n "$PKG" ]; then
                     RESULT=$(rsh "pm enable --user 0 $PKG")
-                    whiptail --msgbox "Resultado: ${RESULT:-hecho}" 8 55
+                    if echo "$RESULT" | grep -qi "enabled\|success"; then
+                        whiptail --msgbox "✅ App habilitada:\n$PKG" 9 55
+                    else
+                        whiptail --msgbox "⚠️  Resultado:\n${RESULT:-sin respuesta}" 9 55
+                    fi
                 fi
                 ;;
             B|"") break ;;
@@ -276,46 +302,54 @@ app_manager() {
 clipboard_manager() {
     while true; do
         CHOICE=$(whiptail --title "📋 PORTAPAPELES" \
-            --menu "\nQué quieres hacer:" 14 55 4 \
+            --menu "\nQué quieres hacer:" 16 60 5 \
             "1" "👁️   Leer portapapeles" \
-            "2" "✏️   Escribir al portapapeles" \
-            "3" "🧹  Limpiar portapapeles" \
+            "2" "✏️   Copiar texto al portapapeles" \
+            "3" "⌨️   Escribir texto en app activa" \
+            "4" "🧹  Limpiar portapapeles" \
             "B" "← Volver" \
             3>&1 1>&2 2>&3)
 
         case $CHOICE in
             1)
                 local content
-                # termux-clipboard-get es el método más confiable en Termux
-                if command -v termux-clipboard-get &>/dev/null; then
-                    content=$(termux-clipboard-get 2>/dev/null)
-                else
-                    content=$(rsh "service call clipboard 2 i32 1" 2>/dev/null | \
-                        grep -oP "(?<=')(.*?)(?=')" | head -1)
+                # Intentar con timeout para evitar que se quede pegado
+                content=$(timeout 3 termux-clipboard-get 2>/dev/null)
+                if [ -z "$content" ]; then
+                    content="(vacío o no se pudo leer)"
                 fi
-                content="${content:-⚠️  Instala termux-api: pkg install termux-api}"
-                whiptail --msgbox "📋 Portapapeles:\n\n${content}" 15 65 --title "Contenido"
+                whiptail --msgbox "📋 Portapapeles:\n\n${content}" 15 65 --title "Portapapeles"
                 ;;
             2)
                 local new_content
-                new_content=$(whiptail --inputbox "Escribe el texto a copiar:" \
-                    10 60 --title "Escribir al portapapeles" 3>&1 1>&2 2>&3)
+                new_content=$(whiptail --inputbox "Texto a copiar:" \
+                    10 60 --title "Copiar al portapapeles" 3>&1 1>&2 2>&3)
                 if [ -n "$new_content" ]; then
-                    if command -v termux-clipboard-set &>/dev/null; then
-                        printf '%s' "$new_content" | termux-clipboard-set
-                        whiptail --msgbox "✅ Copiado exitosamente" 8 45
+                    # Usar timeout para evitar colgarse
+                    if timeout 4 bash -c "echo -n '$new_content' | termux-clipboard-set" 2>/dev/null; then
+                        whiptail --msgbox "✅ Copiado:\n\n$new_content" 10 55
                     else
-                        whiptail --msgbox "⚠️  Instala termux-api primero:\npkg install termux-api" 9 50
+                        whiptail --msgbox "⚠️  No se pudo copiar automáticamente.\nUsa la opción 3 para escribir en una app." 9 58
                     fi
                 fi
                 ;;
             3)
-                if command -v termux-clipboard-set &>/dev/null; then
-                    printf '' | termux-clipboard-set
-                    whiptail --msgbox "🧹 Portapapeles limpiado" 8 45
-                else
-                    whiptail --msgbox "⚠️  Instala termux-api:\npkg install termux-api" 9 50
+                local text_to_type
+                text_to_type=$(whiptail --inputbox "Texto a escribir en la app activa:\n\nAbre la app y pon el cursor donde\nquieras el texto ANTES de confirmar." \
+                    12 60 --title "Escribir en app activa" 3>&1 1>&2 2>&3)
+                if [ -n "$text_to_type" ]; then
+                    whiptail --infobox "⌨️  Enviando texto en 3 segundos...\n\nPon el cursor en el campo de texto." 8 55
+                    sleep 3
+                    # Escapar espacios (input text usa %s para espacios)
+                    local escaped
+                    escaped=$(printf '%s' "$text_to_type" | sed 's/ /%s/g')
+                    rsh "input text '$escaped'"
+                    whiptail --msgbox "✅ Texto enviado a la app" 7 45
                 fi
+                ;;
+            4)
+                timeout 4 bash -c "echo -n '' | termux-clipboard-set" 2>/dev/null
+                whiptail --msgbox "🧹 Portapapeles limpiado" 8 45
                 ;;
             B|"") break ;;
         esac
