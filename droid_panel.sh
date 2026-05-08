@@ -206,28 +206,42 @@ app_manager() {
 
         case $CHOICE in
             1)
-                local tmp_file
+                local tmp_file menu_args count
                 tmp_file=$(mktemp)
-                echo "=== APPS DE USUARIO ===" > "$tmp_file"
-                rsh "pm list packages -3" | sed 's/package://g' | sort >> "$tmp_file"
-                echo "" >> "$tmp_file"
-                echo "=== APPS DEL SISTEMA ===" >> "$tmp_file"
-                rsh "pm list packages -s" | sed 's/package://g' | sort >> "$tmp_file"
-                local count
-                count=$(rsh "pm list packages -3" | wc -l)
-                whiptail --title "Apps instaladas (~${count} de usuario)" \
-                    --textbox "$tmp_file" 30 70
+                # Obtener apps de usuario
+                rsh "pm list packages -3" | sed 's/package://g' | sort > "$tmp_file"
+                count=$(wc -l < "$tmp_file")
+                # Construir argumentos del menú: índice + nombre
+                menu_args=()
+                local i=1
+                while IFS= read -r pkg; do
+                    menu_args+=("$i" "$pkg")
+                    ((i++))
+                done < "$tmp_file"
                 rm -f "$tmp_file"
+                # Mostrar en menú scrolleable (ancho 54 para pantalla de 56 cols)
+                whiptail --title "Apps de usuario (${count})" \
+                    --menu "\nSelecciona para copiar el nombre:" \
+                    28 54 20 "${menu_args[@]}" 3>&1 1>&2 2>&3
+                # El valor seleccionado es el índice, no lo usamos
+                # pero el usuario puede ver todos los nombres completos
                 ;;
             2)
                 PKG=$(whiptail --inputbox "Package name a abrir:\n(ej: org.telegram.messenger)" \
                     10 60 --title "Abrir App" 3>&1 1>&2 2>&3)
                 if [ -n "$PKG" ]; then
-                    # Resolver el activity correcto con cmd package resolve-activity
+                    # Resolver el activity correcto
                     ACTIVITY=$(rsh "cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER $PKG" | tail -1)
                     if [ -n "$ACTIVITY" ] && [[ "$ACTIVITY" != "No activity"* ]] && [[ "$ACTIVITY" != *"error"* ]]; then
-                        RESULT=$(rsh "am start -n $ACTIVITY")
-                        whiptail --msgbox "🚀 Abriendo:\n$PKG\n\nActivity: $ACTIVITY" 11 60
+                        # Si el activity empieza con punto (ej: .DefaultIcon), expandir con el package name
+                        if [[ "$ACTIVITY" == *"/."* ]]; then
+                            # Extraer la parte después del /
+                            SHORT="${ACTIVITY##*/}"
+                            # Construir nombre completo: paquete/paquete.Activity
+                            ACTIVITY="${PKG}/${PKG}${SHORT}"
+                        fi
+                        rsh "am start -n $ACTIVITY"
+                        whiptail --msgbox "🚀 Abriendo:\n$PKG" 9 55
                     else
                         whiptail --msgbox "❌ No se encontró launcher para:\n$PKG\n\nVerifica que el package name sea correcto." 11 60
                     fi
