@@ -206,25 +206,20 @@ app_manager() {
 
         case $CHOICE in
             1)
-                local tmp_file menu_args count
+                local tmp_file count
                 tmp_file=$(mktemp)
-                # Obtener apps de usuario
-                rsh "pm list packages -3" | sed 's/package://g' | sort > "$tmp_file"
-                count=$(wc -l < "$tmp_file")
-                # Construir argumentos del menú: índice + nombre
-                menu_args=()
-                local i=1
-                while IFS= read -r pkg; do
-                    menu_args+=("$i" "$pkg")
-                    ((i++))
-                done < "$tmp_file"
+                echo "━━━ APPS DE USUARIO ━━━" > "$tmp_file"
+                echo "" >> "$tmp_file"
+                rsh "pm list packages -3" | sed 's/package://g' | sort >> "$tmp_file"
+                echo "" >> "$tmp_file"
+                echo "━━━ APPS DEL SISTEMA ━━━" >> "$tmp_file"
+                echo "" >> "$tmp_file"
+                rsh "pm list packages -s" | sed 's/package://g' | sort >> "$tmp_file"
+                count=$(rsh "pm list packages -3" | wc -l)
+                whiptail --title "Apps instaladas (${count} usuario)" \
+                    --scrolltext \
+                    --textbox "$tmp_file" 28 56
                 rm -f "$tmp_file"
-                # Mostrar en menú scrolleable (ancho 54 para pantalla de 56 cols)
-                whiptail --title "Apps de usuario (${count})" \
-                    --menu "\nSelecciona para copiar el nombre:" \
-                    28 54 20 "${menu_args[@]}" 3>&1 1>&2 2>&3
-                # El valor seleccionado es el índice, no lo usamos
-                # pero el usuario puede ver todos los nombres completos
                 ;;
             2)
                 PKG=$(whiptail --inputbox "Package name a abrir:\n(ej: org.telegram.messenger)" \
